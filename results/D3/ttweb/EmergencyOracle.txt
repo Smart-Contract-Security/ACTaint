@@ -1,0 +1,43 @@
+Solidity Version: 0.8.9
+Switched global version to 0.8.9
+==============Start====================
+rules:
+{Function:turnOffOracle, Visibility:external, Explanation:Writes to variable turnOn without any access control.}
+{Function:turnOnOracle, Visibility:external, Explanation:Writes to variable turnOn without any access control.}
+
+=============Contract: EmergencyOracle
+Sink:
+Step 1: **Reference Analysis**
+
+The static analysis result indicates potential issues with the functions `turnOffOracle` and `turnOnOracle`, mentioning that they write to the variable `turnOn` without any access control. However, upon reviewing the code, both functions are protected by the `onlyOwner` modifier, which restricts access to the contract owner. Therefore, the static analysis result seems incorrect in this context.
+
+Step 2: **Identify Sink**
+
+Let's analyze each function in the contract to identify any potential sinks:
+
+1. **Constructor**: 
+   - `constructor(address _owner, string memory _description) Ownable()`: This is the legitimate constructor of the contract, and it correctly sets the initial owner and description. It does not represent a sink.
+
+2. **getAssetPrice**:
+   - `function getAssetPrice() external view returns (uint256)`: This function reads the `price` variable and requires `turnOn` to be true. It does not modify any state and is not a sink.
+
+3. **turnOnOracle**:
+   - `function turnOnOracle() external onlyOwner`: This function sets `turnOn` to true. It is protected by the `onlyOwner` modifier, ensuring only the owner can call it. Therefore, it is not a sink.
+
+4. **turnOffOracle**:
+   - `function turnOffOracle() external onlyOwner`: This function sets `turnOn` to false. It is protected by the `onlyOwner` modifier, ensuring only the owner can call it. Therefore, it is not a sink.
+
+5. **setAssetPrice**:
+   - `function setAssetPrice(uint256 newPrice) external onlyOwner`: This function updates the `price` and `roundId` variables and emits an event. It is protected by the `onlyOwner` modifier, ensuring only the owner can call it. Therefore, it is not a sink.
+
+Step 3: **Self-Evaluate and Explain**
+
+After evaluating all functions in the contract, none of them qualify as sinks. Each function that modifies the state is protected by the `onlyOwner` modifier, which provides adequate access control. The static analysis reference was incorrect regarding the access control of `turnOnOracle` and `turnOffOracle`.
+
+--Sink--: 
+no sinks
+Report:
+
+==============End======================
+total time: 5.3892982006073
+total token: 2023

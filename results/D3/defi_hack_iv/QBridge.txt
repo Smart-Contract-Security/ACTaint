@@ -1,0 +1,94 @@
+Solidity Version: 0.6.12
+Switched global version to 0.6.12
+==============Start====================
+rules:
+{Function:initialize, Visibility:external, Explanation:Writes to variable expiry without any access control.}
+{Function:setFee, Visibility:external, Explanation:Writes to variable fee without any access control.}
+{Function:initialize, Visibility:external, Explanation:Writes to variable fee without any access control.}
+{Function:setRelayerThreshold, Visibility:external, Explanation:Writes to variable relayerThreshold without any access control.}
+{Function:initialize, Visibility:external, Explanation:Writes to variable relayerThreshold without any access control.}
+
+=============Contract: QBridge
+Sink:
+To identify potential sinks in the provided smart contract, we will follow the outlined steps:
+
+### Step 1: Reference Analysis
+The static analysis result indicates potential issues with access control in the following functions:
+- `initialize`: Writes to `expiry`, `fee`, and `relayerThreshold` without any access control.
+- `setFee`: Writes to `fee` without any access control.
+- `setRelayerThreshold`: Writes to `relayerThreshold` without any access control.
+
+### Step 2: Identify Sink Operations
+We will examine the contract functions to identify any security-sensitive operations that may cause access control vulnerabilities.
+
+1. **Function: `initialize`**
+   - **Visibility**: `external`
+   - **Operation**: Sets `domainID`, `relayerThreshold`, `fee`, and `expiry`.
+   - **Access Control**: Uses `initializer` modifier, which does not restrict who can call it, only how many times it can be called.
+   - **Sink Identification**: This function can be considered a sink because it can be called by anyone if not properly protected, allowing unauthorized initialization of critical contract parameters.
+
+2. **Function: `setFee`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies the `fee` variable.
+   - **Access Control**: Protected by `onlyOwner` modifier, which ensures only the contract owner can call it.
+   - **Sink Identification**: Not a sink, as it is properly protected by access control.
+
+3. **Function: `setRelayerThreshold`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies the `relayerThreshold` variable.
+   - **Access Control**: Protected by `onlyOwner` modifier, which ensures only the contract owner can call it.
+   - **Sink Identification**: Not a sink, as it is properly protected by access control.
+
+4. **Function: `manualRelease`**
+   - **Visibility**: `external`
+   - **Operation**: Calls `withdraw` on a handler contract, transferring tokens.
+   - **Access Control**: Protected by `onlyOwner` modifier.
+   - **Sink Identification**: Not a sink, as it is properly protected by access control.
+
+5. **Function: `sweep`**
+   - **Visibility**: `external`
+   - **Operation**: Transfers the contract's balance to the owner.
+   - **Access Control**: Protected by `onlyOwner` modifier.
+   - **Sink Identification**: Not a sink, as it is properly protected by access control.
+
+6. **Function: `executeProposal`**
+   - **Visibility**: `public`
+   - **Operation**: Executes a proposal by calling `executeProposal` on a handler contract.
+   - **Access Control**: Protected by `onlyRelayers` modifier.
+   - **Sink Identification**: Not a sink, as it is protected by access control ensuring only relayers can execute proposals.
+
+### Step 3: Self-Evaluate and Explain
+Based on the analysis, the following function is identified as a sink due to lack of proper access control:
+
+- **Function: `initialize`**
+  - **Sink**: Initialization of critical contract parameters.
+  - **Visibility**: `external`
+  - **Explanation**: The `initialize` function can be called by anyone if not properly protected, allowing unauthorized initialization of critical contract parameters.
+
+### Conclusion
+--Sink--:
+{Function: initialize, Sink: Initialization of critical parameters, Visibility: external, Explanation: The function can be called by anyone if not properly protected, allowing unauthorized initialization of critical contract parameters.}
+Report:
+**Step 1: Taint Source Identification**
+
+The identified sink is the `initialize` function, which is responsible for setting critical parameters of the contract. This function has external visibility, meaning it can be called by any external account. The potential taint sources for this function are:
+
+- `msg.sender`: The caller of the function, which can be any external account.
+- Function parameters: `_domainID`, `_relayerThreshold`, `_fee`, `_expiry` are parameters that can be influenced by the caller.
+
+**Step 2: Taint Propagation Path Analysis**
+
+The `initialize` function is marked with the `initializer` modifier, which is intended to ensure that the function can only be called once. However, this modifier does not provide access control to restrict who can call the function. Therefore, the function can be called by any external account, including untrusted ones, unless additional access control mechanisms are implemented.
+
+- **Access Control Check**: The `initialize` function lacks any access control checks such as `require` statements or modifiers that would restrict its execution to specific roles or addresses. This means that the function can be called by any external account, allowing untrusted inputs to directly influence the initialization of critical contract parameters.
+
+**Step 3: Self-Evaluation**
+
+Given the analysis, there is a clear taint path from untrusted sources (external callers) to the sink (initialization of critical parameters) without any access control mechanisms to restrict this influence. This constitutes an access control vulnerability.
+
+--Vulnerability--:
+{Function: initialize, Taint Path: msg.sender and function parameters, Description: The initialize function can be called by any external account, allowing unauthorized initialization of critical contract parameters.}
+
+==============End======================
+total time: 16.932080030441284
+total token: 8092

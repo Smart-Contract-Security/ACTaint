@@ -1,0 +1,126 @@
+Solidity Version: >=0.5.0 <0.6.0
+Switched global version to 0.5.0
+==============Start====================
+rules:
+{Function:_transferOwnership, Visibility:internal, Explanation:Writes to variable _contract_owner without any access control.}
+
+=============Contract: Ownable
+Sink:
+To identify potential sinks in the provided smart contract code, we will follow the outlined steps and analyze each function for security-sensitive operations that may lead to access control vulnerabilities.
+
+### Step 1: Reference Analysis
+The static analysis result indicates that the function `_transferOwnership` writes to the variable `_contract_owner` without any access control. This is a point of interest, but we need to verify this in the context of the contract.
+
+### Step 2: Identify Sink
+
+1. **Constructor Function: `constructor()`**
+   - The constructor is correctly defined and initializes the `_contract_owner` to the `msg.sender`. This is expected behavior and does not constitute a sink.
+
+2. **Function: `transferOwnership(address newOwner)`**
+   - This function is public and uses the `onlyOwner` modifier, which ensures that only the current owner can call it. This provides proper access control, so it is not a sink.
+
+3. **Function: `_transferOwnership(address newOwner)`**
+   - This function is internal and is called by `transferOwnership`. It updates the `_contract_owner` variable. The access control is enforced by the `onlyOwner` modifier in `transferOwnership`, which calls this function. Therefore, `_transferOwnership` itself is not directly exposed and is not a sink.
+
+4. **Other Functions and Modifiers**
+   - The `owner()` function is a view function that returns the current owner and does not modify any state, so it is not a sink.
+   - The `onlyOwner` modifier provides access control by checking if the caller is the owner, which is a standard practice and does not introduce a sink.
+
+### Step 3: Self-Evaluate and Explain
+
+After evaluating the contract, we find that all functions that modify the state are properly protected by access control mechanisms. The `_transferOwnership` function, although it writes to a sensitive state variable, is only callable through `transferOwnership`, which is protected by the `onlyOwner` modifier. Therefore, there are no functions in this contract that constitute a sink.
+
+--Sink--: 
+no sinks
+Report:
+
+rules:
+{Function:changeFeeConfig, Visibility:public, Explanation:Writes to variable fee_pool without any access control.}
+{Function:changeMaxLoanRate, Visibility:public, Explanation:Writes to variable mlr without any access control.}
+{Function:callWithData, Visibility:public, Explanation:Uses low level call.}
+
+=============Contract: EFLeverVault
+Sink:
+To identify sink operations in the provided smart contract, we need to examine functions that perform security-sensitive operations without proper access control. Let's go through the contract step by step:
+
+1. **Function: `changeFeeConfig`**
+   - **Visibility**: `public`
+   - **Operation**: This function updates the `fee_pool` and `block_rate` variables.
+   - **Access Control**: It is protected by the `onlyOwner` modifier, which restricts access to the contract owner.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+2. **Function: `changeMaxLoanRate`**
+   - **Visibility**: `public`
+   - **Operation**: This function updates the `mlr` variable.
+   - **Access Control**: It is protected by the `onlyOwner` modifier.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+3. **Function: `callWithData`**
+   - **Visibility**: `public`
+   - **Operation**: This function uses low-level `call` and `delegatecall` to execute arbitrary code.
+   - **Access Control**: It is protected by the `onlyOwner` modifier.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+4. **Function: `constructor`**
+   - **Visibility**: `public`
+   - **Operation**: Initializes the contract state.
+   - **Access Control**: Constructors are inherently protected as they are only called once during contract deployment.
+   - **Conclusion**: Not a sink.
+
+5. **Function: `pause`**
+   - **Visibility**: `public`
+   - **Operation**: Pauses the contract operations.
+   - **Access Control**: It is protected by the `onlyOwner` modifier.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+6. **Function: `restart`**
+   - **Visibility**: `public`
+   - **Operation**: Restarts the contract operations.
+   - **Access Control**: It is protected by the `onlyOwner` modifier.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+7. **Function: `reduceActualLTV`**
+   - **Visibility**: `public`
+   - **Operation**: Reduces the loan-to-value ratio.
+   - **Access Control**: It is protected by the `onlyOwner` modifier.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+8. **Function: `raiseActualLTV`**
+   - **Visibility**: `public`
+   - **Operation**: Raises the loan-to-value ratio.
+   - **Access Control**: It is protected by the `onlyOwner` modifier.
+   - **Conclusion**: Not a sink, as it has proper access control.
+
+9. **Function: `deposit`**
+   - **Visibility**: `public`
+   - **Operation**: Allows users to deposit funds.
+   - **Access Control**: It is protected by the `nonReentrant` modifier, but this does not enforce access control.
+   - **Conclusion**: Not a sink, as it is intended for public use and does not modify sensitive state without proper checks.
+
+10. **Function: `withdraw`**
+    - **Visibility**: `public`
+    - **Operation**: Allows users to withdraw funds.
+    - **Access Control**: It is protected by the `nonReentrant` modifier, but this does not enforce access control.
+    - **Conclusion**: Not a sink, as it is intended for public use and does not modify sensitive state without proper checks.
+
+11. **Function: `_earnReward`**
+    - **Visibility**: `internal`
+    - **Operation**: Calculates and distributes rewards.
+    - **Access Control**: Internal functions are not directly accessible externally.
+    - **Conclusion**: Not a sink.
+
+12. **Fallback Function**
+    - **Visibility**: `external payable`
+    - **Operation**: Allows the contract to receive Ether.
+    - **Access Control**: Fallback functions are intended to be public.
+    - **Conclusion**: Not a sink.
+
+After reviewing the contract, all functions that perform security-sensitive operations are protected by the `onlyOwner` modifier, which provides adequate access control. Therefore, no sink operations are identified in this contract.
+
+--Sink--: 
+no sinks
+Report:
+
+==============End======================
+total time: 17.463465690612793
+total token: 7613

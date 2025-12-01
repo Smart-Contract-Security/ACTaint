@@ -1,0 +1,6 @@
+Solidity Version: 0.8.17
+Switched global version to 0.8.17
+==============Start====================
+==============End======================
+total time: 0.41650819778442383
+total token: 0

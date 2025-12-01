@@ -1,0 +1,140 @@
+Solidity Version: 0.8.0
+Switched global version to 0.8.0
+==============Start====================
+rules:
+
+=============Contract: BridgeOperatable
+Sink:
+To identify potential sinks in the provided smart contract, we will analyze each function and its operations, focusing on security-sensitive operations that may lead to access control vulnerabilities.
+
+### Step-by-Step Analysis:
+
+1. **Constructor**:
+   - **Function**: `constructor()`
+   - **Operation**: Initializes the `owner`, `operator1`, and `operator2` to `msg.sender`.
+   - **Analysis**: This is the legitimate constructor of the contract and does not represent a sink.
+
+2. **Modifiers**:
+   - **onlyOwner**: Ensures that the function can only be called by the `owner`.
+   - **onlyOperator1**: Ensures that the function can only be called by `operator1`.
+   - **onlyOperator2**: Ensures that the function can only be called by `operator2`.
+   - **Analysis**: These modifiers are used to enforce access control and are not sinks themselves.
+
+3. **Function: `transferOwner`**:
+   - **Operation**: Transfers ownership to a new address.
+   - **Access Control**: Protected by `onlyOwner`.
+   - **Analysis**: The function is properly guarded by the `onlyOwner` modifier, ensuring only the current owner can transfer ownership. This is not a sink.
+
+4. **Function: `transferOperator1`**:
+   - **Operation**: Transfers the role of `operator1` to a new address.
+   - **Access Control**: Protected by `onlyOwner`.
+   - **Analysis**: The function is properly guarded by the `onlyOwner` modifier, ensuring only the current owner can transfer the operator1 role. This is not a sink.
+
+5. **Function: `transferOperator2`**:
+   - **Operation**: Transfers the role of `operator2` to a new address.
+   - **Access Control**: Protected by `onlyOwner`.
+   - **Analysis**: The function is properly guarded by the `onlyOwner` modifier, ensuring only the current owner can transfer the operator2 role. This is not a sink.
+
+### Conclusion:
+
+All functions that modify critical state variables (such as `owner`, `operator1`, and `operator2`) are protected by the `onlyOwner` modifier, which ensures that only the current owner can execute these functions. Therefore, there are no security-sensitive operations that could lead to access control vulnerabilities in this contract.
+
+--Sink--: 
+no sinks
+Report:
+--Tx.origin Vulnerability--:
+{Function: onlyOwner, Explanation: Uses tx.origin as condition.}
+{Function: transferOperator1, Explanation: Uses tx.origin as condition.}
+{Function: transferOwner, Explanation: Uses tx.origin as condition.}
+{Function: onlyOperator2, Explanation: Uses tx.origin as condition.}
+{Function: onlyOperator1, Explanation: Uses tx.origin as condition.}
+{Function: transferOperator2, Explanation: Uses tx.origin as condition.}
+
+rules:
+{Function:trigger, Visibility:external, Explanation:Transfers Ether or Token.}
+{Function:withdraw, Visibility:external, Explanation:Transfers Ether or Token.}
+
+=============Contract: NodokaBridge
+Sink:
+To identify the **Sink** operations in the provided smart contract, we will analyze each function for security-sensitive operations that may lead to access control vulnerabilities. We will focus on operations that transfer Ether or tokens, as these are typically sensitive and require proper access control.
+
+### Step-by-Step Analysis:
+
+1. **Constructor**:
+   - The constructor `constructor()` is correctly defined and does not perform any sensitive operations. It is not a sink.
+
+2. **Function: `setPair`**:
+   - This function is protected by the `onlyOwner` modifier, which implies that only the contract owner can call it. It modifies the state by setting token pairs but does not perform any sensitive operations like transferring Ether or tokens. It is not a sink.
+
+3. **Function: `removePair`**:
+   - Similar to `setPair`, this function is protected by `onlyOwner` and modifies the state by removing token pairs. It does not involve any sensitive operations. It is not a sink.
+
+4. **Function: `setMinMax`**:
+   - This function is also protected by `onlyOwner` and modifies the state by setting minimum and maximum amounts for tokens. It does not perform any sensitive operations. It is not a sink.
+
+5. **Function: `setTreasury`**:
+   - This function is protected by `onlyOwner` and sets the treasury address for a token. While it changes the address where funds might be sent, it does not directly transfer any funds. It is not a sink.
+
+6. **Function: `deposit`**:
+   - This function allows users to deposit tokens or Ether. It includes checks for token activity and amount limits. The function transfers tokens from the user to the contract and emits an event. It does not directly transfer funds to an external address without user initiation. It is not a sink.
+
+7. **Function: `withdraw`**:
+   - This function is protected by `onlyOperator1` and transfers Ether or tokens from the contract to the treasury address. Since it involves transferring funds, it is a sensitive operation. It is a sink.
+
+8. **Function: `trigger`**:
+   - This function is protected by `onlyOperator2` and transfers Ether or mints/transfers tokens to a specified address. It involves transferring funds, making it a sensitive operation. It is a sink.
+
+### Identified Sinks:
+
+Based on the analysis, the following functions are identified as sinks due to their sensitive operations involving the transfer of Ether or tokens:
+
+--Sink--:
+{Function: withdraw, Sink: Transfer of Ether or Tokens, Visibility: external, Explanation: Transfers Ether or tokens from the contract to the treasury address, which is a sensitive operation requiring proper access control.}
+{Function: trigger, Sink: Transfer of Ether or Tokens, Visibility: external, Explanation: Transfers Ether or mints/transfers tokens to a specified address, which is a sensitive operation requiring proper access control.}
+Report:
+To analyze the contract for potential vulnerabilities, we will follow the steps outlined:
+
+### Step 1: Taint Source Identification
+
+1. **Function: `withdraw`**
+   - **Parameters**: `_token`, `_amount`
+   - **Access Control**: The function is protected by the `onlyOperator1` modifier, which implies that only accounts with the `Operator1` role can call this function.
+   - **Taint Source**: The function parameters `_token` and `_amount` are not directly influenced by untrusted input due to the access control provided by the `onlyOperator1` modifier.
+
+2. **Function: `trigger`**
+   - **Parameters**: `_token`, `_to`, `_amount`
+   - **Access Control**: The function is protected by the `onlyOperator2` modifier, which implies that only accounts with the `Operator2` role can call this function.
+   - **Taint Source**: The function parameters `_token`, `_to`, and `_amount` are not directly influenced by untrusted input due to the access control provided by the `onlyOperator2` modifier.
+
+### Step 2: Taint Propagation Path Analysis
+
+1. **Function: `withdraw`**
+   - **Taint Propagation**: The function is protected by the `onlyOperator1` modifier, which restricts access to authorized operators only. The parameters `_token` and `_amount` are used to determine the transfer of Ether or tokens, but since the function is not accessible to arbitrary external accounts, there is no taint propagation from untrusted sources.
+
+2. **Function: `trigger`**
+   - **Taint Propagation**: The function is protected by the `onlyOperator2` modifier, which restricts access to authorized operators only. The parameters `_token`, `_to`, and `_amount` are used to determine the transfer of Ether or tokens, but since the function is not accessible to arbitrary external accounts, there is no taint propagation from untrusted sources.
+
+### Step 3: Self-Evaluation
+
+- Both `withdraw` and `trigger` functions have appropriate access control mechanisms in place (`onlyOperator1` and `onlyOperator2` modifiers, respectively). These modifiers ensure that only authorized operators can invoke these functions, preventing untrusted input from reaching the sensitive operations (sinks) within these functions.
+
+- There are no paths from untrusted sources (e.g., `msg.sender` from arbitrary external accounts) that can influence the execution of these functions due to the access control provided by the modifiers.
+
+### Conclusion
+
+--Vulnerability--: 
+no vulnerability
+--Tx.origin Vulnerability--:
+{Function: onlyOwner, Explanation: Uses tx.origin as condition.}
+{Function: setTreasury, Explanation: Uses tx.origin as condition.}
+{Function: setPair, Explanation: Uses tx.origin as condition.}
+{Function: withdraw, Explanation: Uses tx.origin as condition.}
+{Function: trigger, Explanation: Uses tx.origin as condition.}
+{Function: setMinMax, Explanation: Uses tx.origin as condition.}
+{Function: onlyOperator2, Explanation: Uses tx.origin as condition.}
+{Function: removePair, Explanation: Uses tx.origin as condition.}
+{Function: onlyOperator1, Explanation: Uses tx.origin as condition.}
+
+==============End======================
+total time: 20.226818561553955
+total token: 7399

@@ -1,0 +1,107 @@
+Solidity Version: 0.6.12
+Switched global version to 0.6.12
+==============Start====================
+rules:
+{Function:initialize, Visibility:external, Explanation:Writes to variable _bridgeAddress without any access control.}
+{Function:setWithdrawalFee, Visibility:external, Explanation:Writes to variable withdrawalFees without any access control.}
+{Function:setMinDepositAmount, Visibility:external, Explanation:Writes to variable minAmounts without any access control.}
+
+=============Contract: QBridgeHandler
+Sink:
+To identify potential sinks in the provided smart contract, we will analyze each function for security-sensitive operations that may lead to access control vulnerabilities. We will focus on functions that modify state variables or perform critical operations without proper access control.
+
+### Step-by-Step Analysis:
+
+1. **Function: `initialize`**
+   - **Visibility**: `external`
+   - **Operation**: Sets the `_bridgeAddress` variable.
+   - **Access Control**: Uses `initializer` modifier, which does not restrict who can call it, only that it can be called once.
+   - **Reasoning**: The `initialize` function is intended to be called only once to set up the contract. However, without proper access control, it can be called by anyone, potentially leading to unauthorized setting of the `_bridgeAddress`.
+
+2. **Function: `setResource`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies `resourceIDToTokenContractAddress`, `tokenContractAddressToResourceID`, and `contractWhitelist`.
+   - **Access Control**: Protected by `onlyBridge` modifier, which ensures only the bridge contract can call it.
+   - **Reasoning**: Properly protected by the `onlyBridge` modifier, so it is not a sink.
+
+3. **Function: `setBurnable`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies `burnList`.
+   - **Access Control**: Protected by `onlyBridge` modifier.
+   - **Reasoning**: Properly protected by the `onlyBridge` modifier, so it is not a sink.
+
+4. **Function: `setDelegator`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies `delegators`.
+   - **Access Control**: Protected by `onlyOwner` modifier.
+   - **Reasoning**: Properly protected by the `onlyOwner` modifier, so it is not a sink.
+
+5. **Function: `setWithdrawalFee`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies `withdrawalFees`.
+   - **Access Control**: Protected by `onlyOwner` modifier.
+   - **Reasoning**: Properly protected by the `onlyOwner` modifier, so it is not a sink.
+
+6. **Function: `setMinDepositAmount`**
+   - **Visibility**: `external`
+   - **Operation**: Modifies `minAmounts`.
+   - **Access Control**: Protected by `onlyOwner` modifier.
+   - **Reasoning**: Properly protected by the `onlyOwner` modifier, so it is not a sink.
+
+7. **Function: `deposit`**
+   - **Visibility**: `external`
+   - **Operation**: Transfers tokens or burns them.
+   - **Access Control**: Protected by `onlyBridge` modifier.
+   - **Reasoning**: Properly protected by the `onlyBridge` modifier, so it is not a sink.
+
+8. **Function: `depositETH`**
+   - **Visibility**: `external`
+   - **Operation**: Handles ETH deposits.
+   - **Access Control**: Protected by `onlyBridge` modifier.
+   - **Reasoning**: Properly protected by the `onlyBridge` modifier, so it is not a sink.
+
+9. **Function: `executeProposal`**
+   - **Visibility**: `external`
+   - **Operation**: Mints tokens or transfers ETH/tokens.
+   - **Access Control**: Protected by `onlyBridge` modifier.
+   - **Reasoning**: Properly protected by the `onlyBridge` modifier, so it is not a sink.
+
+10. **Function: `withdraw`**
+    - **Visibility**: `external`
+    - **Operation**: Transfers ETH or tokens.
+    - **Access Control**: Protected by `onlyBridge` modifier.
+    - **Reasoning**: Properly protected by the `onlyBridge` modifier, so it is not a sink.
+
+### Conclusion:
+
+Based on the analysis, the only function that could potentially be a sink due to lack of proper access control is the `initialize` function. All other functions are adequately protected by access control modifiers.
+
+--Sink--:
+{Function: initialize, Sink: _bridgeAddress, Visibility: external, Explanation: The initialize function can be called by anyone due to the lack of access control, allowing unauthorized setting of the _bridgeAddress.}
+Report:
+To analyze the contract `QBridgeHandler` for potential vulnerabilities, particularly focusing on whether untrusted inputs can reach any security-sensitive operations (sinks), we will follow the outlined steps:
+
+### Step 1: Taint Source Identification
+
+1. **Function: `initialize`**
+   - **Sink**: `_bridgeAddress`
+   - **Visibility**: `external`
+   - **Explanation**: The `initialize` function can be called by anyone due to the lack of access control, allowing unauthorized setting of the `_bridgeAddress`.
+
+### Step 2: Taint Propagation Path
+
+1. **Function: `initialize`**
+   - **Taint Source**: The function is `external`, meaning it can be called by any external account. The parameter `bridgeAddress` is directly set to the state variable `_bridgeAddress`.
+   - **Access Control**: The function uses the `initializer` modifier, which is intended to ensure the function is called only once. However, this does not restrict who can call it initially. There is no `onlyOwner` or similar access control modifier applied to this function.
+   - **Taint Path**: The lack of access control allows any external account to call `initialize` and set `_bridgeAddress` to an arbitrary address.
+
+### Step 3: Self-Evaluation
+
+- **Access Control Vulnerability**: The `initialize` function lacks proper access control, allowing any external account to set the `_bridgeAddress`. This is a critical vulnerability because it allows unauthorized entities to potentially control the bridge address, which is central to the contract's functionality.
+
+--Vulnerability--:
+{Function:initialize,Taint Path:external call to initialize,Description:The initialize function lacks access control, allowing any external account to set the _bridgeAddress, leading to potential unauthorized control over the bridge address.}
+
+==============End======================
+total time: 29.42380714416504
+total token: 5693

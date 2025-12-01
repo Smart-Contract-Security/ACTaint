@@ -1,0 +1,60 @@
+Solidity Version: 0.8.7
+Switched global version to 0.8.7
+==============Start====================
+rules:
+{Function:payUSDT, Visibility:external, Explanation:Writes to variable tokensBoughtOf without any access control.}
+{Function:payETH, Visibility:external, Explanation:Writes to variable tokensBoughtOf without any access control.}
+{Function:receive, Visibility:external, Explanation:Writes to variable tokensBoughtOf without any access control.}
+{Function:payUSDT, Visibility:external, Explanation:Writes to variable tokensSold without any access control.}
+{Function:payETH, Visibility:external, Explanation:Writes to variable tokensSold without any access control.}
+{Function:receive, Visibility:external, Explanation:Writes to variable tokensSold without any access control.}
+{Function:takeAll, Visibility:external, Explanation:Transfers Ether or Token.}
+{Function:recoverErc20, Visibility:external, Explanation:Transfers Ether or Token.}
+{Function:_sendTokens, Visibility:internal, Explanation:Transfers Ether or Token.}
+{Function:recoverEth, Visibility:external, Explanation:Transfers Ether or Token.}
+
+=============Contract: TattooMoneyPublicSaleIV
+Sink:
+To identify the **Sink** operations in the provided smart contract, we will analyze each function for security-sensitive operations that may lead to access control vulnerabilities. We will focus on operations that transfer tokens or Ether, modify critical state variables, or change ownership without proper access control.
+
+### Analysis:
+
+1. **Function: `payUSDC`, `payUSDT`, `payDAI`, `paywBTC`, `payETH`, `receive`**
+   - These functions allow users to pay with different tokens or Ether. They update `tokensSold` and `tokensBoughtOf` for the user. However, they are protected by the `notEnded` modifier, which ensures the sale is ongoing and within the specified date range. The operations are expected behavior for a token sale and do not constitute a sink.
+
+2. **Function: `_sendTokens`**
+   - This internal function transfers TAT2 tokens to the user. It is called by the payment functions and is protected by the `notEnded` modifier. The transfer operation is part of the expected token sale process and does not constitute a sink.
+
+3. **Function: `takeAll`**
+   - This function allows the owner to transfer all collected tokens and Ether to themselves. It is protected by the `onlyOwner` modifier, ensuring only the contract owner can execute it. This is a sensitive operation but is properly access-controlled, so it is not a sink.
+
+4. **Function: `recoverErc20`**
+   - This function allows the owner to recover any ERC20 tokens sent to the contract. It is protected by the `onlyOwner` modifier, ensuring only the contract owner can execute it. This is a sensitive operation but is properly access-controlled, so it is not a sink.
+
+5. **Function: `recoverEth`**
+   - This function allows the owner to recover any Ether sent to the contract. It is protected by the `onlyOwner` modifier, ensuring only the contract owner can execute it. This is a sensitive operation but is properly access-controlled, so it is not a sink.
+
+6. **Function: `EndSale`**
+   - This function allows the owner to end the sale. It is protected by the `onlyOwner` modifier, ensuring only the contract owner can execute it. This is a sensitive operation but is properly access-controlled, so it is not a sink.
+
+7. **Function: `changeOwner` and `acceptOwnership`**
+   - These functions handle ownership transfer. `changeOwner` is protected by the `onlyOwner` modifier, and `acceptOwnership` requires the caller to be the `newOwner`. These operations are sensitive but are properly access-controlled, so they are not sinks.
+
+### Conclusion:
+
+After analyzing the contract, all sensitive operations are properly protected by access control mechanisms, such as the `onlyOwner` modifier. Therefore, no operations in this contract constitute a sink.
+
+--Sink--: 
+no sinks
+Report:
+--Tx.origin Vulnerability--:
+{Function: recoverEth, Explanation: Uses tx.origin as condition.}
+{Function: onlyOwner, Explanation: Uses tx.origin as condition.}
+{Function: recoverErc20, Explanation: Uses tx.origin as condition.}
+{Function: changeOwner, Explanation: Uses tx.origin as condition.}
+{Function: takeAll, Explanation: Uses tx.origin as condition.}
+{Function: EndSale, Explanation: Uses tx.origin as condition.}
+
+==============End======================
+total time: 9.649232864379883
+total token: 3933

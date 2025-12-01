@@ -1,0 +1,102 @@
+Solidity Version: 0.8.3
+Switched global version to 0.8.3
+==============Start====================
+rules:
+{Function:_finalise, Visibility:internal, Explanation:Writes to variable mapPID_coolOffTime without any access control.}
+{Function:newParamProposal, Visibility:external, Explanation:Writes to variable mapPID_startTime without any access control.}
+{Function:newActionProposal, Visibility:external, Explanation:Writes to variable mapPID_startTime without any access control.}
+{Function:newGrantProposal, Visibility:external, Explanation:Writes to variable mapPID_startTime without any access control.}
+{Function:newAddressProposal, Visibility:external, Explanation:Writes to variable mapPID_startTime without any access control.}
+{Function:newParamProposal, Visibility:external, Explanation:Writes to variable currentProposal without any access control.}
+{Function:newActionProposal, Visibility:external, Explanation:Writes to variable currentProposal without any access control.}
+{Function:newGrantProposal, Visibility:external, Explanation:Writes to variable currentProposal without any access control.}
+{Function:newAddressProposal, Visibility:external, Explanation:Writes to variable currentProposal without any access control.}
+{Function:_increaseSpartaAllocation, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:_removeCuratedPool, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:_addCuratedPool, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:_delistBondingAsset, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:changeCooloff, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:moveReserve, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:completeProposal, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:_finalise, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:grantFunds, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:flipEmissions, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:moveUtils, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:changeEras, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:moveRouter, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:moveDao, Visibility:internal, Explanation:Writes to variable mapPID_finalising without any access control.}
+{Function:deposit, Visibility:external, Explanation:Writes to variable isMember without any access control.}
+{Function:moveDao, Visibility:internal, Explanation:Writes to variable daoHasMoved without any access control.}
+{Function:moveReserve, Visibility:internal, Explanation:Writes to variable _RESERVE without any access control.}
+{Function:_delistBondingAsset, Visibility:internal, Explanation:Writes to variable isListed without any access control.}
+{Function:changeCooloff, Visibility:internal, Explanation:Writes to variable coolOffPeriod without any access control.}
+{Function:moveRouter, Visibility:internal, Explanation:Writes to variable _ROUTER without any access control.}
+{Function:_increaseSpartaAllocation, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:_removeCuratedPool, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:_addCuratedPool, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:newGrantProposal, Visibility:external, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:_delistBondingAsset, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:changeCooloff, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:newAddressProposal, Visibility:external, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:moveReserve, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:completeProposal, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:newActionProposal, Visibility:external, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:grantFunds, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:newParamProposal, Visibility:external, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:flipEmissions, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:moveUtils, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:changeEras, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:moveRouter, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:moveDao, Visibility:internal, Explanation:Writes to variable mapPID_open without any access control.}
+{Function:moveBASEBalance, Visibility:external, Explanation:Transfers Ether or Token.}
+
+=============Contract: Dao
+Sink:
+To identify sink operations in the provided smart contract code, I will analyze each function for security-sensitive operations that may lead to access control vulnerabilities. I will focus on operations that modify contract state, transfer funds, or change ownership without proper access control.
+
+### Step-by-Step Analysis:
+
+1. **Constructor**:
+   - The constructor function initializes the contract state and sets the `DEPLOYER` and `BASE` addresses. This is standard and does not constitute a sink.
+
+2. **Function: `setGenesisAddresses`, `setVaultAddresses`, `setFactoryAddresses`, `setGenesisFactors`, `purgeDeployer`, `changeBondingPeriod`**:
+   - These functions are protected by the `onlyDAO` modifier, which requires the caller to be the `DEPLOYER`. This provides access control, so these functions are not sinks.
+
+3. **Function: `deposit`, `depositLPForMember`, `withdraw`, `harvest`, `bond`, `handleTransferIn`, `claimAllForMember`, `claimForMember`**:
+   - These functions involve transferring tokens and updating mappings related to members. They do not modify state in a way that affects access control, and they require certain conditions to be met (e.g., pool is curated, amount is positive). They are not sinks.
+
+4. **Function: `moveBASEBalance`**:
+   - This function transfers the entire balance of `BASE` tokens to a new DAO address. It is protected by the `onlyDAO` modifier, ensuring only the deployer can call it. Therefore, it is not a sink.
+
+5. **Function: `listBondAsset`, `delistBondAsset`**:
+   - These functions modify the `isListed` mapping and emit events. They are protected by the `onlyDAO` modifier, providing access control. They are not sinks.
+
+6. **Function: `newActionProposal`, `newParamProposal`, `newAddressProposal`, `newGrantProposal`**:
+   - These functions create new proposals and update mappings related to proposals. They do not directly affect access control or transfer funds. They are not sinks.
+
+7. **Function: `voteProposal`, `removeVote`, `_finalise`, `cancelProposal`, `finaliseProposal`**:
+   - These functions handle voting and finalizing proposals. They involve checks for quorum and majority, and they do not directly affect access control or transfer funds. They are not sinks.
+
+8. **Function: `moveDao`, `moveRouter`, `moveUtils`, `moveReserve`, `flipEmissions`, `changeCooloff`, `changeEras`, `grantFunds`, `_increaseSpartaAllocation`, `_listBondingAsset`, `_delistBondingAsset`, `_addCuratedPool`, `_removeCuratedPool`**:
+   - These functions modify contract state based on proposals. They are protected by checks for proposal finalization and majority/quorum, ensuring proper governance. They are not sinks.
+
+9. **Function: `completeProposal`, `countVotes`, `hasMajority`, `hasQuorum`, `hasMinority`**:
+   - These functions are involved in the proposal process and do not directly affect access control or transfer funds. They are not sinks.
+
+10. **Function: `ROUTER`, `UTILS`, `BONDVAULT`, `DAOVAULT`, `POOLFACTORY`, `SYNTHFACTORY`, `RESERVE`, `SYNTHVAULT`**:
+    - These functions return contract addresses and do not modify state or affect access control. They are not sinks.
+
+11. **Function: `memberCount`, `getProposalDetails`, `assetListedCount`, `allListedAssets`, `isEqual`**:
+    - These functions are view functions that return information about the contract state. They do not modify state or affect access control. They are not sinks.
+
+### Conclusion:
+
+After analyzing the contract, I find that all functions are either protected by access control mechanisms or do not perform security-sensitive operations that could lead to access control vulnerabilities. Therefore, no sinks are identified in this contract.
+
+--Sink--: 
+no sinks
+Report:
+
+==============End======================
+total time: 46.08061075210571
+total token: 8975
