@@ -1,0 +1,3 @@
+solc-select==1.0.4
+slither-analyzer==0.11.3
+openai==1.37.2
