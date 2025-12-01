@@ -1,0 +1,9 @@
+pragma solidity 0.8.13;
+library AddressBook {
+    address public constant SENSE_MULTISIG = 0x19f3bF5d7F8A58945DA80eaA4131DF2958f7AA4A;
+    address public constant SENSE_DEPLOYER = 0xF13519734649F7464E5BE4aa91987A35594b2B16;
+    address public constant DIVIDER_1_2_0 = 0x09B10E45A912BcD4E80a8A3119f0cfCcad1e1f12;
+    address public constant PERIPHERY_1_3_0 = 0x876CaD23753F033E5308CFcc66E7608645527a9e;
+    address public constant SPACE_FACTORY_1_3_0 = 0x93158100B4351935c9BC2DE9A33357c4D54D94Bb;
+    address public constant BALANCER_VAULT = 0x1aB16CB0cb0e5520e0C081530C679B2e846e4D37;
+}

@@ -1,0 +1,17 @@
+pragma solidity ^0.8.17;
+import {BeaconProxy} from "../proxy/BeaconProxy.sol";
+import {IAccount} from "../interface/core/IAccount.sol";
+import {IAccountFactory} from "../interface/core/IAccountFactory.sol";
+contract AccountFactory is IAccountFactory {
+    address public beacon;
+    constructor (address _beacon) {
+        beacon = _beacon;
+    }
+    function create(address accountManager)
+        external
+        returns (address account)
+    {
+        account = address(new BeaconProxy(beacon, accountManager));
+        emit AccountCreated(account, accountManager);
+    }
+}

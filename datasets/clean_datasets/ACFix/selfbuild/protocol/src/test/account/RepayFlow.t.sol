@@ -1,0 +1,109 @@
+pragma solidity ^0.8.17;
+import {BaseTest} from "../utils/BaseTest.sol";
+import {LToken} from "../../tokens/LToken.sol";
+import {Registry} from "../../core/Registry.sol";
+import {IAccount} from "../../interface/core/IAccount.sol";
+import {AccountManager} from "../../core/AccountManager.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+contract RepayFlowTest is BaseTest {
+    using FixedPointMathLib for uint;
+    address public account;
+    address public borrower = cheats.addr(1);
+    address public account2;
+    address public borrower2 = cheats.addr(15);
+    function setUp() public {
+        setupContracts();
+        account = openAccount(borrower);
+        account2 = openAccount(borrower2);
+    }
+    function testRepayEth(uint96 depositAmt, uint96 borrowAmt, uint96 repayAmt)
+        public
+    {
+        cheats.assume(borrowAmt > repayAmt && repayAmt > 10 ** (18 - 2));
+        cheats.assume(
+            (uint(depositAmt) + borrowAmt).divWadDown(borrowAmt) >
+            riskEngine.balanceToBorrowThreshold()
+        );
+        deposit(borrower, account, address(0), depositAmt);
+        borrow(borrower, account, address(weth), borrowAmt);
+        cheats.prank(borrower);
+        accountManager.repay(account, address(weth), repayAmt);
+        assertEq(
+            riskEngine.getBalance(account),
+            uint(depositAmt) + borrowAmt - repayAmt
+        );
+        assertEq(riskEngine.getBorrows(account), borrowAmt - repayAmt);
+    }
+    function testRepayERC20(uint96 depositAmt, uint96 borrowAmt, uint96 repayAmt)
+        public
+    {
+        cheats.assume(borrowAmt > repayAmt && repayAmt > 10 ** (18 - 2));
+        cheats.assume(
+            (uint(depositAmt) + borrowAmt).divWadDown(borrowAmt) >
+            riskEngine.balanceToBorrowThreshold()
+        );
+        deposit(borrower, account, address(erc20), depositAmt);
+        borrow(borrower, account, address(erc20), borrowAmt);
+        cheats.prank(borrower);
+        accountManager.repay(account, address(erc20), repayAmt);
+        assertEq(
+            riskEngine.getBalance(account),
+            uint(depositAmt) + borrowAmt - repayAmt
+        );
+        assertEq(riskEngine.getBorrows(account), borrowAmt - repayAmt);
+    }
+    function testMaxRepayWETH(uint96 depositAmt, uint96 borrowAmt) public {
+        cheats.assume(borrowAmt > 0);
+        cheats.assume(
+            (uint(depositAmt) + borrowAmt).divWadDown(borrowAmt) >
+            riskEngine.balanceToBorrowThreshold()
+        );
+        deposit(borrower, account, address(0), depositAmt);
+        borrow(borrower, account, address(weth), borrowAmt);
+        cheats.prank(borrower);
+        accountManager.repay(account, address(weth), type(uint).max);
+        assertEq(riskEngine.getBorrows(account), 0);
+    }
+    function testMaxRepayERC20(uint96 depositAmt, uint96 borrowAmt) public {
+        cheats.assume(borrowAmt > 10 ** (18 - 2));
+        cheats.assume(
+            (uint(depositAmt) + borrowAmt).divWadDown(borrowAmt) >
+            riskEngine.balanceToBorrowThreshold()
+        );
+        deposit(borrower, account, address(erc20), depositAmt);
+        borrow(borrower, account, address(erc20), borrowAmt);
+        cheats.prank(borrower);
+        accountManager.repay(account, address(erc20), type(uint).max);
+        assertEq(riskEngine.getBorrows(account), 0);
+    }
+    function testMaxRepayERC20WithInterest(uint96 depositAmt, uint56 borrowAmt1, uint56 borrowAmt2)
+        public
+    {
+        cheats.assume(uint256(borrowAmt1) + borrowAmt2 > 10 ** (18 - 2) && borrowAmt1 > 0 && borrowAmt2 > 0);
+        cheats.assume(
+            (uint(depositAmt) + borrowAmt1 + borrowAmt2)
+            .divWadDown(uint(borrowAmt1) + borrowAmt2) >
+            riskEngine.balanceToBorrowThreshold()
+        );
+        erc20.mint(lender, type(uint96).max);
+        cheats.startPrank(lender);
+        erc20.approve(address(lErc20), type(uint).max);
+        lErc20.deposit(uint(borrowAmt1) + uint(borrowAmt2), lender);
+        cheats.stopPrank();
+        deposit(borrower, account, address(erc20), depositAmt);
+        cheats.prank(borrower);
+        accountManager.borrow(account, address(erc20), borrowAmt1);
+        cheats.roll(block.number + 100);
+        deposit(borrower2, account2, address(erc20), depositAmt);
+        cheats.prank(borrower2);
+        accountManager.borrow(account2, address(erc20), borrowAmt2);
+        cheats.roll(block.number + 100);
+        cheats.prank(borrower);
+        accountManager.repay(account, address(erc20), type(uint).max);
+        cheats.prank(borrower2);
+        accountManager.repay(account2, address(erc20), type(uint).max);
+        assertEq(lErc20.getBorrowBalance(account), 0);
+        assertEq(lErc20.getBorrowBalance(account2), 0);
+        assertEq(lErc20.getBorrows(), 0);
+    }
+}

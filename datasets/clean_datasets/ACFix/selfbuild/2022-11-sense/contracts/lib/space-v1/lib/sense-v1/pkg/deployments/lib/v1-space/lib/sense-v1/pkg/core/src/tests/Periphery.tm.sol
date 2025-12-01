@@ -1,0 +1,132 @@
+pragma solidity 0.8.11;
+import { DSTest } from "./test-helpers/test.sol";
+import { LiquidityHelper } from "./test-helpers/LiquidityHelper.sol";
+import { Hevm } from "./test-helpers/Hevm.sol";
+import { FixedMath } from "../external/FixedMath.sol";
+import { ERC20 } from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import { Periphery } from "../Periphery.sol";
+import { PoolManager } from "@sense-finance/v1-fuse/src/PoolManager.sol";
+import { Divider, TokenHandler } from "../Divider.sol";
+import { BaseFactory } from "../adapters/BaseFactory.sol";
+import { BaseAdapter } from "../adapters/BaseAdapter.sol";
+import { CAdapter } from "../adapters/compound/CAdapter.sol";
+import { FAdapter } from "../adapters/fuse/FAdapter.sol";
+import { CFactory } from "../adapters/compound/CFactory.sol";
+import { FFactory } from "../adapters/fuse/FFactory.sol";
+import { DateTimeFull } from "./test-helpers/DateTimeFull.sol";
+import { User } from "./test-helpers/User.sol";
+import { TestHelper } from "./test-helpers/TestHelper.sol";
+import { MockOracle } from "./test-helpers/mocks/fuse/MockOracle.sol";
+import { MockTarget } from "./test-helpers/mocks/MockTarget.sol";
+import { MockToken } from "./test-helpers/mocks/MockToken.sol";
+import { Assets } from "./test-helpers/Assets.sol";
+import { MockSpaceFactory, MockBalancerVault } from "./test-helpers/mocks/MockSpace.sol";
+contract PeripheryTestHelper is DSTest, LiquidityHelper {
+    address public constant POOL_DIR = 0x835482FE0532f169024d5E9410199369aAD5C77E;
+    address public constant COMPTROLLER_IMPL = 0xE16DB319d9dA7Ce40b666DD2E365a4b8B3C18217;
+    address public constant CERC20_IMPL = 0x67Db14E73C2Dce786B5bbBfa4D010dEab4BBFCF9;
+    address public constant MASTER_ORACLE_IMPL = 0xb3c8eE7309BE658c186F986388c2377da436D8fb;
+    uint16 public constant MODE = 0;
+    uint64 public constant ISSUANCE_FEE = 0.01e18;
+    uint256 public constant STAKE_SIZE = 1e18;
+    uint256 public constant MIN_MATURITY = 2 weeks;
+    uint256 public constant MAX_MATURITY = 14 weeks;
+    Periphery internal periphery;
+    FAdapter internal fadapter;
+    CAdapter internal cadapter;
+    CFactory internal cfactory;
+    FFactory internal ffactory;
+    Divider internal divider;
+    PoolManager internal poolManager;
+    TokenHandler internal tokenHandler;
+    MockOracle internal mockOracle;
+    MockBalancerVault internal balancerVault;
+    MockSpaceFactory internal spaceFactory;
+    Hevm internal constant hevm = Hevm(HEVM_ADDRESS);
+    function setUp() public {
+        (uint256 year, uint256 month, ) = DateTimeFull.timestampToDate(block.timestamp);
+        uint256 firstDayOfMonth = DateTimeFull.timestampFromDateTime(year, month, 1, 0, 0, 0);
+        hevm.warp(firstDayOfMonth); 
+        tokenHandler = new TokenHandler();
+        divider = new Divider(address(this), address(tokenHandler));
+        tokenHandler.init(address(divider));
+        poolManager = new PoolManager(POOL_DIR, COMPTROLLER_IMPL, CERC20_IMPL, address(divider), MASTER_ORACLE_IMPL);
+        balancerVault = new MockBalancerVault();
+        spaceFactory = new MockSpaceFactory(address(balancerVault), address(divider));
+        periphery = new Periphery(
+            address(divider),
+            address(poolManager),
+            address(spaceFactory),
+            address(balancerVault)
+        );
+        poolManager.setIsTrusted(address(periphery), true);
+        divider.setPeriphery(address(periphery));
+        mockOracle = new MockOracle();
+        BaseFactory.FactoryParams memory factoryParams = BaseFactory.FactoryParams({
+            stake: Assets.DAI,
+            oracle: address(mockOracle),
+            ifee: ISSUANCE_FEE,
+            stakeSize: STAKE_SIZE,
+            minm: MIN_MATURITY,
+            maxm: MAX_MATURITY,
+            mode: MODE,
+            tilt: 0
+        });
+        cfactory = new CFactory(address(divider), factoryParams, Assets.COMP);
+        ffactory = new FFactory(address(divider), factoryParams);
+        divider.setIsTrusted(address(cfactory), true);
+        periphery.setFactory(address(cfactory), true);
+        divider.setIsTrusted(address(ffactory), true);
+        periphery.setFactory(address(ffactory), true);
+        poolManager.deployPool("Sense Pool Main", 0.051 ether, 1 ether, Assets.RARI_ORACLE);
+        PoolManager.AssetParams memory params = PoolManager.AssetParams({
+            irModel: 0xEDE47399e2aA8f076d40DC52896331CBa8bd40f7,
+            reserveFactor: 0.1 ether,
+            collateralFactor: 0.5 ether
+        });
+        poolManager.setParams("TARGET_PARAMS", params);
+    }
+}
+contract PeripheryTests is PeripheryTestHelper {
+    using FixedMath for uint256;
+    function testMainnetSponsorSeriesOnCAdapter() public {
+        address f = periphery.deployAdapter(address(cfactory), Assets.cDAI, "");
+        cadapter = CAdapter(payable(f));
+        giveTokens(Assets.DAI, type(uint256).max, hevm);
+        (uint256 year, uint256 month, ) = DateTimeFull.timestampToDate(block.timestamp);
+        uint256 maturity = DateTimeFull.timestampFromDateTime(
+            month == 12 ? year + 1 : year,
+            month == 12 ? 1 : (month + 1),
+            1,
+            0,
+            0,
+            0
+        );
+        ERC20(Assets.DAI).approve(address(periphery), type(uint256).max);
+        (address pt, address yt) = periphery.sponsorSeries(address(cadapter), maturity, false);
+        assertTrue(pt != address(0));
+        assertTrue(yt != address(0));
+        (PoolManager.SeriesStatus status, ) = PoolManager(address(poolManager)).sSeries(address(cadapter), maturity);
+        assertTrue(status == PoolManager.SeriesStatus.QUEUED);
+    }
+    function testMainnetSponsorSeriesOnFAdapter() public {
+        address f = periphery.deployAdapter(address(ffactory), Assets.f156FRAX3CRV, abi.encode(Assets.TRIBE_CONVEX));
+        fadapter = FAdapter(payable(f));
+        giveTokens(Assets.DAI, type(uint256).max, hevm);
+        (uint256 year, uint256 month, ) = DateTimeFull.timestampToDate(block.timestamp);
+        uint256 maturity = DateTimeFull.timestampFromDateTime(
+            month == 12 ? year + 1 : year,
+            month == 12 ? 1 : (month + 1),
+            1,
+            0,
+            0,
+            0
+        );
+        ERC20(Assets.DAI).approve(address(periphery), type(uint256).max);
+        (address pt, address yt) = periphery.sponsorSeries(address(fadapter), maturity, false);
+        assertTrue(pt != address(0));
+        assertTrue(yt != address(0));
+        (PoolManager.SeriesStatus status, ) = PoolManager(address(poolManager)).sSeries(address(fadapter), maturity);
+        assertTrue(status == PoolManager.SeriesStatus.QUEUED);
+    }
+}

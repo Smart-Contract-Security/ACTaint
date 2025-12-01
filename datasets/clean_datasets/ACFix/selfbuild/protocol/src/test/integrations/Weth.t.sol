@@ -1,0 +1,43 @@
+pragma solidity ^0.8.17;
+import {Errors} from "../../utils/Errors.sol";
+import {IERC20} from "../../interface/tokens/IERC20.sol";
+import {IAccount} from "../../interface/core/IAccount.sol";
+import {IntegrationBaseTest} from "./utils/IntegrationBaseTest.sol";
+import {IAccountManager} from "../../interface/core/IAccountManager.sol";
+contract WethIntegrationTest is IntegrationBaseTest {
+    address account;
+    address user = cheats.addr(1);
+    function setUp() public {
+        setupContracts();
+        setupOracles();
+        setupWethController();
+        account = openAccount(user);
+    }
+    function testWrapEth(uint96 amt) public {
+        cheats.assume(amt > 0);
+        deposit(user, account, address(0), amt);
+        bytes memory data = abi.encodeWithSignature("deposit()");
+        cheats.prank(user);
+        accountManager.exec(account, WETH, amt, data);
+        assertEq(account.balance, 0);
+        assertEq(IAccount(account).assets(0), WETH);
+        assertEq(IERC20(WETH).balanceOf(account), amt);
+    }
+    function testUnwrapEth(uint96 amt) public {
+        testWrapEth(amt);
+        bytes memory data = abi.encodeWithSignature(
+            "withdraw(uint256)", amt
+        );
+        cheats.prank(user);
+        accountManager.exec(account, WETH, 0, data);
+        assertEq(account.balance, amt);
+        assertEq(IERC20(WETH).balanceOf(account), 0);
+        assertEq(IAccount(account).getAssets().length, 0);
+    }
+    function testWethSigError(uint96 amt, bytes4 sig) public {
+        bytes memory data = abi.encodeWithSelector(sig);
+        cheats.prank(user);
+        cheats.expectRevert(Errors.FunctionCallRestricted.selector);
+        accountManager.exec(account, WETH, amt, data);
+    }
+}

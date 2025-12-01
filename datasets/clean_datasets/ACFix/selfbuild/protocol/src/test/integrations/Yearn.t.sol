@@ -1,0 +1,58 @@
+pragma solidity ^0.8.17;
+import {IERC20} from "../../interface/tokens/IERC20.sol";
+import {IAccount} from "../../interface/core/IAccount.sol";
+import {YTokenOracle} from "oracle/yearn/YTokenOracle.sol";
+import {IntegrationBaseTest} from "./utils/IntegrationBaseTest.sol";
+import {YearnVaultController} from "controller/yearn/YearnController.sol";
+contract YearnIntegrationTest is IntegrationBaseTest {
+    address account;
+    address user = cheats.addr(1);
+    address yearnVault = 0xE537B5cc158EB71037D4125BDD7538421981E6AA;
+    YearnVaultController yearnController;
+    YTokenOracle yTokenOracle;
+    function setupYearnController() internal {
+        yearnController = new YearnVaultController();
+        controller.updateController(yearnVault, yearnController);
+        yTokenOracle = new YTokenOracle(oracle);
+        oracle.setOracle(yearnVault, yTokenOracle);
+        controller.toggleTokenAllowance(yearnVault);
+    }
+    function setUp() public {
+        setupContracts();
+        setupOracles();
+        setupCurveController();
+        setupYearnController();
+        setupWethController();
+        account = openAccount(user);
+    }
+    function testVaultDeposit(uint64 amt) public {
+        cheats.assume(amt > 1e8 gwei);
+        deposit(user, account, address(0), amt);
+        depositCurveLiquidity(account, amt, user);
+        bytes memory data = abi.encodeWithSignature(
+            "deposit(uint256)",
+            IERC20(crv3crypto).balanceOf(account)
+        );
+        cheats.startPrank(user);
+        accountManager.approve(account, crv3crypto, yearnVault, type(uint).max);
+        accountManager.exec(account, yearnVault, 0, data);
+        cheats.stopPrank();
+        assertEq(IERC20(crv3crypto).balanceOf(account), 0);
+        assertGt(IERC20(yearnVault).balanceOf(account), 0);
+        assertEq(IAccount(account).assets(0), yearnVault);
+    }
+    function testVaultWithdraw(uint64 amt) public {
+        testVaultDeposit(amt);
+        bytes memory data = abi.encodeWithSignature(
+            "withdraw(uint256)",
+            IERC20(yearnVault).balanceOf(account)
+        );
+        cheats.startPrank(user);
+        accountManager.approve(account, yearnVault, yearnVault, type(uint).max);
+        accountManager.exec(account, yearnVault, 0, data);
+        cheats.stopPrank();
+        assertEq(IERC20(yearnVault).balanceOf(account), 0);
+        assertGt(IERC20(crv3crypto).balanceOf(account), 0);
+        assertEq(IAccount(account).assets(0), crv3crypto);
+    }
+}

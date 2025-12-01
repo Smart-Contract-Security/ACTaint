@@ -1,0 +1,510 @@
+pragma solidity 0.8.13;
+import "forge-std/Test.sol";
+import { Divider, TokenHandler } from "../../Divider.sol";
+import { BaseFactory, ChainlinkOracleLike } from "../../adapters/abstract/factories/BaseFactory.sol";
+import { BaseAdapter } from "../../adapters/abstract/BaseAdapter.sol";
+import { IPriceFeed } from "../../adapters/abstract/IPriceFeed.sol";
+import { PoolManager } from "@sense-finance/v1-fuse/src/PoolManager.sol";
+import { Token } from "../../tokens/Token.sol";
+import { Periphery } from "../../Periphery.sol";
+import { MockToken, MockNonERC20Token } from "./mocks/MockToken.sol";
+import { MockTarget, MockNonERC20Target } from "./mocks/MockTarget.sol";
+import { MockAdapter, MockCropAdapter, Mock4626CropAdapter } from "./mocks/MockAdapter.sol";
+import { MockERC4626 } from "./mocks/MockERC4626.sol";
+import { ERC4626Adapter } from "../../adapters/abstract/erc4626/ERC4626Adapter.sol";
+import { ERC4626Factory } from "../../adapters/abstract/factories/ERC4626Factory.sol";
+import { ERC4626CropsFactory } from "../../adapters/abstract/factories/ERC4626CropsFactory.sol";
+import { ERC4626CropFactory } from "../../adapters/abstract/factories/ERC4626CropFactory.sol";
+import { MockFactory, MockCropFactory, MockCropsFactory, Mock4626CropsFactory } from "./mocks/MockFactory.sol";
+import { ERC20 } from "solmate/tokens/ERC20.sol";
+import { AddressBook } from "./AddressBook.sol";
+import { Constants } from "./Constants.sol";
+import { SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
+import { MockSpaceFactory, MockBalancerVault } from "./mocks/MockSpace.sol";
+import { MockComptroller } from "./mocks/fuse/MockComptroller.sol";
+import { MockFuseDirectory } from "./mocks/fuse/MockFuseDirectory.sol";
+import { MockOracle } from "./mocks/fuse/MockOracle.sol";
+import { Errors } from "@sense-finance/v1-utils/src/libs/Errors.sol";
+import { DateTimeFull } from "./DateTimeFull.sol";
+import { FixedMath } from "../../external/FixedMath.sol";
+interface MockTargetLike {
+    function decimals() external returns (uint256);
+    function totalSupply() external returns (uint256);
+    function balanceOf(address usr) external returns (uint256);
+    function mint(address account, uint256 amount) external;
+    function approve(address account, uint256 amount) external;
+    function transfer(address to, uint256 amount) external returns (bool);
+    function underlying() external returns (address);
+    function asset() external returns (address);
+    function totalAssets() external returns (uint256);
+    function previewDeposit(uint256 assets) external returns (uint256);
+    function previewMint(uint256 shares) external returns (uint256);
+    function mint(uint256 shares, address receiver) external;
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+}
+interface CTokenInterface {
+    function mint(uint256 mintAmount) external returns (uint256);
+}
+contract TestHelper is Test {
+    using SafeTransferLib for ERC20;
+    using FixedMath for uint256;
+    using FixedMath for uint64;
+    MockCropAdapter internal adapter;
+    MockToken internal stake;
+    MockToken internal underlying;
+    MockTargetLike internal target;
+    MockToken internal reward;
+    MockCropFactory internal factory;
+    MockOracle internal masterOracle;
+    PoolManager internal poolManager;
+    Divider internal divider;
+    TokenHandler internal tokenHandler;
+    Periphery internal periphery;
+    address internal alice = address(1);
+    address internal bob = address(2);
+    address internal jim = address(3);
+    MockSpaceFactory internal spaceFactory;
+    MockBalancerVault internal balancerVault;
+    MockComptroller internal comptroller;
+    MockFuseDirectory internal fuseDirectory;
+    BaseAdapter.AdapterParams public DEFAULT_ADAPTER_PARAMS;
+    uint256 internal GROWTH_PER_SECOND = 792744799594; 
+    uint8 public MODE = 0;
+    address public ORACLE = address(123);
+    uint64 public ISSUANCE_FEE = 0.05e18;
+    uint256 public STAKE_SIZE = 1e18;
+    uint256 public MIN_MATURITY = 2 weeks;
+    uint256 public MAX_MATURITY = 14 weeks;
+    uint16 public DEFAULT_LEVEL = 31;
+    uint16 public DEFAULT_TILT = 0;
+    uint256 public DEFAULT_GUARD = 100000 * 1e18; 
+    uint256 public SPONSOR_WINDOW;
+    uint256 public SETTLEMENT_WINDOW;
+    uint256 public SCALING_FACTOR;
+    bool internal is4626Target;
+    uint256 public AMT = 2000; 
+    uint256 public MIN_TARGET = 1e4; 
+    uint256 public MAX_TARGET;
+    bool internal nonERC20Target;
+    bool internal nonERC20Underlying;
+    bool internal nonERC20Stake;
+    uint8 internal tDecimals;
+    uint8 internal uDecimals;
+    uint8 internal sDecimals;
+    uint8 internal rDecimals;
+    function setUp() public virtual {
+        vm.warp(1630454400);
+        setEnv();
+        stake = MockToken(deployMockStake("Stake Token", "ST", sDecimals));
+        underlying = MockToken(deployMockUnderlying("Dai Token", "DAI", uDecimals));
+        rDecimals = 18;
+        reward = new MockToken("Reward Token", "RT", rDecimals);
+        target = MockTargetLike(deployMockTarget(address(underlying), "Compound Dai", "cDAI", tDecimals));
+        SCALING_FACTOR = 10**(tDecimals > uDecimals ? tDecimals - uDecimals : uDecimals - tDecimals);
+        GROWTH_PER_SECOND = convertToBase(GROWTH_PER_SECOND, target.decimals());
+        tokenHandler = new TokenHandler();
+        divider = new Divider(address(this), address(tokenHandler));
+        tokenHandler.init(address(divider));
+        SPONSOR_WINDOW = divider.SPONSOR_WINDOW();
+        SETTLEMENT_WINDOW = divider.SETTLEMENT_WINDOW();
+        balancerVault = new MockBalancerVault();
+        spaceFactory = new MockSpaceFactory(address(balancerVault), address(divider));
+        comptroller = new MockComptroller();
+        fuseDirectory = new MockFuseDirectory(address(comptroller));
+        masterOracle = new MockOracle();
+        poolManager = new PoolManager(
+            address(fuseDirectory),
+            address(comptroller),
+            address(1),
+            address(divider),
+            address(masterOracle) 
+        );
+        poolManager.deployPool("Sense Fuse Pool", 0.051 ether, 1 ether, address(1));
+        PoolManager.AssetParams memory params = PoolManager.AssetParams({
+            irModel: 0xEDE47399e2aA8f076d40DC52896331CBa8bd40f7,
+            reserveFactor: 0.1 ether,
+            collateralFactor: 0.5 ether
+        });
+        poolManager.setParams("TARGET_PARAMS", params);
+        periphery = new Periphery(
+            address(divider),
+            address(poolManager),
+            address(spaceFactory),
+            address(balancerVault)
+        );
+        divider.setPeriphery(address(periphery));
+        poolManager.setIsTrusted(address(periphery), true);
+        STAKE_SIZE = STAKE_SIZE.fdiv(1e18, sDecimals);
+        DEFAULT_ADAPTER_PARAMS = BaseAdapter.AdapterParams({
+            oracle: ORACLE,
+            stake: address(stake),
+            stakeSize: STAKE_SIZE,
+            minm: MIN_MATURITY,
+            maxm: MAX_MATURITY,
+            mode: MODE,
+            tilt: 0,
+            level: DEFAULT_LEVEL
+        });
+        bytes memory returnData = abi.encode(
+            1,
+            int256(Constants.DEFAULT_CHAINLINK_ETH_PRICE),
+            block.timestamp,
+            block.timestamp,
+            1
+        ); 
+        ChainlinkOracleLike oracle = ChainlinkOracleLike(AddressBook.ETH_USD_PRICEFEED);
+        vm.mockCall(address(address(oracle)), abi.encodeWithSelector(oracle.latestRoundData.selector), returnData);
+        returnData = abi.encode(1e18); 
+        vm.mockCall(
+            address(ORACLE),
+            abi.encodeWithSelector(IPriceFeed(ORACLE).price.selector, address(underlying)),
+            returnData
+        );
+        factory = MockCropFactory(deployCropFactory(address(target)));
+        bytes memory data = abi.encode(address(reward));
+        address a = periphery.deployAdapter(address(factory), address(target), data); 
+        adapter = MockCropAdapter(a);
+        divider.setGuard(address(adapter), 10 * 2**128);
+        MAX_TARGET = AMT * 10**target.decimals();
+        alice = address(this); 
+        vm.label(alice, "Alice");
+        initUser(alice, target, AMT);
+        vm.label(bob, "Bob");
+        initUser(bob, target, AMT);
+        vm.label(jim, "Jim");
+        initUser(jim, target, AMT);
+    }
+    function initUser(
+        address usr,
+        MockTargetLike target,
+        uint256 amt
+    ) public {
+        vm.startPrank(usr);
+        ERC20(address(underlying)).safeApprove(address(periphery), type(uint256).max);
+        ERC20(address(underlying)).safeApprove(address(divider), type(uint256).max);
+        ERC20(address(target)).safeApprove(address(periphery), type(uint256).max);
+        ERC20(address(target)).safeApprove(address(divider), type(uint256).max);
+        ERC20(address(stake)).safeApprove(address(periphery), type(uint256).max);
+        ERC20(address(stake)).safeApprove(address(divider), type(uint256).max);
+        uint256 underlyingAmt = amt * 10**uDecimals;
+        uint256 targetAmt = amt * 10**tDecimals;
+        uint256 stakeAmt = amt * 10**sDecimals;
+        underlying.mint(usr, underlyingAmt);
+        stake.mint(usr, stakeAmt);
+        if (is4626Target) {
+            uint256 assets = target.previewMint(targetAmt);
+            underlying.mint(usr, assets);
+            underlying.approve(address(target), type(uint256).max);
+            target.mint(targetAmt, usr);
+        } else {
+            target.mint(usr, targetAmt);
+        }
+        vm.stopPrank();
+    }
+    function addLiquidityToBalancerVault(
+        address adapter,
+        uint256 maturity,
+        uint256 tBal
+    ) public {
+        return _addLiquidityToBalancerVault(adapter, maturity, tBal);
+    }
+    function addLiquidityToBalancerVault(uint256 maturity, uint256 tBal) public {
+        return _addLiquidityToBalancerVault(address(adapter), maturity, tBal);
+    }
+    function _addLiquidityToBalancerVault(
+        address adapter,
+        uint256 maturity,
+        uint256 tBal
+    ) internal {
+        MockTargetLike target = MockTargetLike(MockAdapter(adapter).target());
+        MockToken underlying = MockToken(!is4626Target ? target.underlying() : target.asset());
+        if (!is4626Target) {
+            target.mint(address(balancerVault), tBal / 2);
+            target.mint(address(this), tBal / 2);
+        } else {
+            uint256 uBal = target.previewMint(tBal);
+            underlying.mint(address(this), uBal * 2);
+            underlying.approve(address(target), type(uint256).max);
+            target.mint(tBal / 2, address(balancerVault));
+            target.mint(tBal / 2, address(this));
+        }
+        uint256 issued = divider.issue(address(adapter), maturity, tBal / 2);
+        MockToken(divider.pt(address(adapter), maturity)).transfer(address(balancerVault), issued);
+    }
+    function deployERC4626Factory(address _target) public returns (address someFactory) {
+        BaseFactory.FactoryParams memory factoryParams = BaseFactory.FactoryParams({
+            stake: address(stake),
+            oracle: ORACLE,
+            ifee: ISSUANCE_FEE,
+            stakeSize: STAKE_SIZE,
+            minm: MIN_MATURITY,
+            maxm: MAX_MATURITY,
+            mode: MODE,
+            tilt: 0,
+            guard: DEFAULT_GUARD
+        });
+        someFactory = address(
+            new ERC4626Factory(address(divider), Constants.RESTRICTED_ADMIN, Constants.REWARDS_RECIPIENT, factoryParams)
+        );
+        MockFactory(someFactory).supportTarget(_target, true);
+        divider.setIsTrusted(someFactory, true);
+        periphery.setFactory(someFactory, true);
+    }
+    function deployERC4626CropsFactory(address _target) public returns (address someFactory) {
+        BaseFactory.FactoryParams memory factoryParams = BaseFactory.FactoryParams({
+            stake: address(stake),
+            oracle: ORACLE,
+            ifee: ISSUANCE_FEE,
+            stakeSize: STAKE_SIZE,
+            minm: MIN_MATURITY,
+            maxm: MAX_MATURITY,
+            mode: MODE,
+            tilt: 0,
+            guard: DEFAULT_GUARD
+        });
+        someFactory = address(
+            new ERC4626CropsFactory(
+                address(divider),
+                Constants.RESTRICTED_ADMIN,
+                Constants.REWARDS_RECIPIENT,
+                factoryParams
+            )
+        );
+        MockFactory(someFactory).supportTarget(_target, true);
+        divider.setIsTrusted(someFactory, true);
+        periphery.setFactory(someFactory, true);
+    }
+    function deployFactory(address _target) public returns (address someFactory) {
+        BaseFactory.FactoryParams memory factoryParams = BaseFactory.FactoryParams({
+            stake: address(stake),
+            oracle: ORACLE,
+            ifee: ISSUANCE_FEE,
+            stakeSize: STAKE_SIZE,
+            minm: MIN_MATURITY,
+            maxm: MAX_MATURITY,
+            mode: MODE,
+            tilt: 0,
+            guard: DEFAULT_GUARD
+        });
+        if (is4626Target) {
+            someFactory = address(
+                new ERC4626Factory(
+                    address(divider),
+                    Constants.RESTRICTED_ADMIN,
+                    Constants.REWARDS_RECIPIENT,
+                    factoryParams
+                )
+            );
+        } else {
+            someFactory = address(
+                new MockFactory(
+                    address(divider),
+                    Constants.RESTRICTED_ADMIN,
+                    Constants.REWARDS_RECIPIENT,
+                    factoryParams
+                )
+            );
+        }
+        MockFactory(someFactory).supportTarget(_target, true);
+        divider.setIsTrusted(someFactory, true);
+        periphery.setFactory(someFactory, true);
+    }
+    function deployCropsFactory(address _target) public returns (address someFactory) {
+        address[] memory rewardTokens = new address[](1);
+        rewardTokens[0] = address(reward);
+        return deployCropsFactory(_target, rewardTokens, true);
+    }
+    function deployCropFactory(address _target) public returns (address someFactory) {
+        address[] memory rewardTokens = new address[](1);
+        rewardTokens[0] = address(reward);
+        return deployCropsFactory(_target, rewardTokens, false);
+    }
+    function deployCropsFactory(
+        address _target,
+        address[] memory _rewardTokens,
+        bool crops
+    ) public returns (address someFactory) {
+        BaseFactory.FactoryParams memory factoryParams = BaseFactory.FactoryParams({
+            stake: address(stake),
+            oracle: ORACLE,
+            ifee: ISSUANCE_FEE,
+            stakeSize: STAKE_SIZE,
+            minm: MIN_MATURITY,
+            maxm: MAX_MATURITY,
+            mode: MODE,
+            tilt: 0,
+            guard: DEFAULT_GUARD
+        });
+        if (is4626Target) {
+            if (crops) {
+                someFactory = address(
+                    new ERC4626CropsFactory(
+                        address(divider),
+                        Constants.RESTRICTED_ADMIN,
+                        Constants.REWARDS_RECIPIENT,
+                        factoryParams
+                    )
+                );
+            } else {
+                someFactory = address(
+                    new ERC4626CropFactory(
+                        address(divider),
+                        Constants.RESTRICTED_ADMIN,
+                        Constants.REWARDS_RECIPIENT,
+                        factoryParams,
+                        address(0)
+                    )
+                );
+            }
+        } else {
+            if (crops) {
+                someFactory = address(
+                    new MockCropsFactory(
+                        address(divider),
+                        Constants.RESTRICTED_ADMIN,
+                        Constants.REWARDS_RECIPIENT,
+                        factoryParams,
+                        _rewardTokens
+                    )
+                );
+            } else {
+                someFactory = address(
+                    new MockCropFactory(
+                        address(divider),
+                        Constants.RESTRICTED_ADMIN,
+                        Constants.REWARDS_RECIPIENT,
+                        factoryParams,
+                        _rewardTokens[0]
+                    )
+                );
+            }
+        }
+        MockFactory(someFactory).supportTarget(_target, true);
+        divider.setIsTrusted(someFactory, true);
+        periphery.setFactory(someFactory, true);
+    }
+    function deployMockTarget(
+        address _underlying,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    ) internal returns (address _target) {
+        if (is4626Target) {
+            _target = address(new MockERC4626(ERC20(_underlying), _name, _symbol, _decimals));
+        } else if (nonERC20Target) {
+            _target = address(new MockNonERC20Target(_underlying, _name, _symbol, _decimals));
+        } else {
+            _target = address(new MockTarget(_underlying, _name, _symbol, _decimals));
+        }
+    }
+    function deployMockUnderlying(
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    ) internal returns (address _underlying) {
+        if (nonERC20Underlying) {
+            _underlying = address(new MockNonERC20Token(_name, _symbol, _decimals));
+        } else {
+            _underlying = address(new MockToken(_name, _symbol, _decimals));
+        }
+    }
+    function deployMockStake(
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    ) internal returns (address _stake) {
+        if (nonERC20Stake) {
+            _stake = address(new MockNonERC20Token(_name, _symbol, _decimals));
+        } else {
+            _stake = address(new MockToken(_name, _symbol, _decimals));
+        }
+    }
+    function deployMockAdapter(
+        address _divider,
+        address _target,
+        address _reward
+    ) internal returns (address _adapter) {
+        if (!is4626Target) {
+            _adapter = address(
+                new MockCropAdapter(
+                    address(_divider),
+                    address(_target),
+                    target.underlying(),
+                    Constants.REWARDS_RECIPIENT,
+                    ISSUANCE_FEE,
+                    DEFAULT_ADAPTER_PARAMS,
+                    address(_reward)
+                )
+            );
+        } else {
+            _adapter = address(
+                new Mock4626CropAdapter(
+                    address(_divider),
+                    address(_target),
+                    target.asset(),
+                    Constants.REWARDS_RECIPIENT,
+                    ISSUANCE_FEE,
+                    DEFAULT_ADAPTER_PARAMS,
+                    address(_reward)
+                )
+            );
+        }
+    }
+    function getValidMaturity(uint256 year, uint256 month) public view returns (uint256 maturity) {
+        maturity = DateTimeFull.timestampFromDateTime(year, month, 1, 0, 0, 0);
+        if (maturity < block.timestamp + 2 weeks) revert("InvalidMaturityOffsets");
+    }
+    function convertToBase(uint256 amount, uint256 decimals) internal pure returns (uint256) {
+        if (decimals != 18) {
+            amount = decimals > 18 ? amount * 10**(decimals - 18) : amount / 10**(18 - decimals);
+        }
+        return amount;
+    }
+    function calculateAmountToIssue(uint256 tBal) public returns (uint256 toIssue) {
+        toIssue = tBal.fmul(adapter.scale());
+    }
+    function increaseScale(address t) internal {
+        if (!is4626Target) {
+            vm.warp(block.timestamp + 1 days);
+        } else {
+            MockERC4626(t).asset();
+            MockToken underlying = MockToken(address(MockERC4626(t).asset()));
+            underlying.mint(t, underlying.balanceOf(t));
+        }
+    }
+    function setEnv() internal {
+        try vm.envUint("UNDERLYING_DECIMALS") returns (uint256 val) {
+            uDecimals = uint8(val);
+        } catch {
+            uDecimals = uint8(18);
+        }
+        try vm.envUint("TARGET_DECIMALS") returns (uint256 val) {
+            tDecimals = uint8(val);
+        } catch {
+            tDecimals = uint8(18);
+        }
+        try vm.envUint("STAKE_DECIMALS") returns (uint256 val) {
+            sDecimals = uint8(val);
+        } catch {
+            sDecimals = uint8(18);
+        }
+        try vm.envBool("ERC4626_TARGET") returns (bool val) {
+            is4626Target = val;
+        } catch {}
+        try vm.envBool("ERC4626_TARGET") returns (bool val) {
+            is4626Target = val;
+        } catch {}
+        try vm.envBool("NON_ERC20_TARGET") returns (bool val) {
+            nonERC20Target = val;
+        } catch {}
+        try vm.envBool("NON_ERC20_UNDERLYING") returns (bool val) {
+            nonERC20Underlying = val;
+        } catch {}
+        try vm.envBool("NON_ERC20_STAKE") returns (bool val) {
+            nonERC20Stake = val;
+        } catch {}
+    }
+    function assertApproxEqAbs(uint256 a, uint256 b) public virtual {
+        assertApproxEqAbs(a, b, 100);
+    }
+}

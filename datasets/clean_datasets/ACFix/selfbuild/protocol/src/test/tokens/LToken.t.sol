@@ -1,0 +1,80 @@
+pragma solidity ^0.8.17;
+import {Errors} from "../../utils/Errors.sol";
+import {BaseTest} from "../utils/BaseTest.sol";
+import {console} from "../utils/console.sol";
+contract LTokenTest is BaseTest {
+    address account;
+    address owner = cheats.addr(1);
+    function setUp() public {
+        setupContracts();
+        account = openAccount(owner);
+    }
+    function testLendTo(uint96 lendAmt, uint96 liquidity) public {
+        cheats.assume(lendAmt <= liquidity && lendAmt > 0);
+        erc20.mint(address(lErc20), liquidity);
+        cheats.prank(address(accountManager));
+        bool isFirstBorrow = lErc20.lendTo(account, lendAmt);
+        uint borrowBalance = lErc20.getBorrowBalance(account);
+        assertTrue(isFirstBorrow);
+        assertEq(borrowBalance, lendAmt);
+    }
+    function testFailLendTo(uint96 lendAmt, uint96 liquidity) public {
+        cheats.assume(lendAmt > liquidity);
+        erc20.mint(address(lErc20), liquidity);
+        cheats.prank(address(accountManager));
+        lErc20.lendTo(account, lendAmt);
+    }
+    function testLendToAuthError(uint96 lendAmt) public {
+        cheats.expectRevert(Errors.AccountManagerOnly.selector);
+        lErc20.lendTo(account, lendAmt);
+    }
+    function testCollectFrom(uint96 lendAmt, uint96 liquidity, uint96 collectAmt)
+        public
+    {
+        cheats.assume(collectAmt <= lendAmt && lendAmt > 0 && collectAmt > 0);
+        testLendTo(lendAmt, liquidity);
+        cheats.startPrank(address(accountManager));
+        bool isBorrowBalanceZero = lErc20.collectFrom(account, collectAmt);
+        cheats.stopPrank();
+        uint borrowBalance = lErc20.getBorrowBalance(account);
+        assertEq(borrowBalance, lendAmt - collectAmt);
+        assertTrue(isBorrowBalanceZero == (lendAmt == collectAmt));
+    }
+    function testFailCollectFrom(uint96 lendAmt, uint96 liquidity, uint96 collectAmt)
+        public
+    {
+        cheats.assume(collectAmt > lendAmt);
+        testLendTo(lendAmt, liquidity);
+        cheats.startPrank(address(accountManager));
+        lErc20.collectFrom(account, collectAmt);
+        cheats.stopPrank();
+    }
+    function testCollectFromAuthError(uint96 lendAmt) public {
+        cheats.expectRevert(Errors.AccountManagerOnly.selector);
+        lErc20.collectFrom(account, lendAmt);
+    }
+    function testGetBorrowBalance(
+        uint96 liquidity,
+        uint96 borrowAmt,
+        uint24 delta
+    )
+        public
+    {
+        testLendTo(borrowAmt, liquidity);
+        cheats.roll(block.number + delta);
+        uint borrowBalance = lErc20.getBorrowBalance(account);
+        assertGe(borrowBalance, borrowAmt);
+    }
+    function testInitialize() public {
+        assertEq(address(registry), address(lErc20.registry()));
+        accountManager.initDep();
+        assertEq(address(rateModel), address(lErc20.rateModel()));
+        assertEq(address(accountManager), address(lErc20.accountManager()));
+    }
+    function testInitializeAuthError(address caller) public {
+        cheats.assume(caller != lErc20.admin());
+        cheats.prank(caller);
+        cheats.expectRevert(Errors.AdminOnly.selector);
+        lErc20.initDep('RATE_MODEL');
+    }
+}

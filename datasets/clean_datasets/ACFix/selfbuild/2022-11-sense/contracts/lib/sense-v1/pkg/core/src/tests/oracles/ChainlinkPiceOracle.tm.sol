@@ -1,0 +1,55 @@
+pragma solidity 0.8.13;
+import "forge-std/Test.sol";
+import { ChainlinkPriceOracle } from "../../adapters/implementations/oracles/ChainlinkPriceOracle.sol";
+import { AddressBook } from "../test-helpers/AddressBook.sol";
+import { Errors } from "@sense-finance/v1-utils/src/libs/Errors.sol";
+import { FixedMath } from "../../external/FixedMath.sol";
+interface FeedLike {
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        );
+    function decimals() external view returns (uint8);
+}
+contract ChainPriceOracleTestHelper is Test {
+    using FixedMath for uint256;
+    ChainlinkPriceOracle internal oracle;
+    address public constant CHAINLINK_DAI_ORACLE = 0x773616E4d11A78F511299002da57A0a94577F1f4; 
+    address public constant CHAINLINK_HT_ORACLE = 0xE1329B3f6513912CAf589659777b66011AEE5880; 
+    address public constant CHAINLINK_WBTC_ORACLE = 0xfdFD9C85aD200c506Cf9e21F1FD8dd01932FBB23; 
+    address public constant CHAINLINK_ETH_ORACLE = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419; 
+    address public constant CHAINLINK_BTC_ORACLE = 0xdeb288F737066589598e9214E782fa5A8eD689e8; 
+    function setUp() public {
+        oracle = new ChainlinkPriceOracle(0);
+    }
+}
+contract ChainlinkPriceOracles is ChainPriceOracleTestHelper {
+    using FixedMath for uint256;
+    function testMainnetDeployOracle() public {
+        ChainlinkPriceOracle otherOracle = new ChainlinkPriceOracle(12345);
+        assertTrue(address(otherOracle) != address(0));
+        assertEq(address(otherOracle.feedRegistry()), AddressBook.CHAINLINK_REGISTRY);
+        assertEq(otherOracle.maxSecondsBeforePriceIsStale(), 12345);
+    }
+    function testMainnetPrice() public {
+        assertEq(oracle.price(AddressBook.WETH), 1e18);
+        (, int256 daiEthPrice, , , ) = FeedLike(CHAINLINK_DAI_ORACLE).latestRoundData();
+        assertEq(oracle.price(AddressBook.DAI), uint256(daiEthPrice));
+        (, int256 htUsdPrice, , , ) = FeedLike(CHAINLINK_HT_ORACLE).latestRoundData();
+        (, int256 ethUsdPrice, , , ) = FeedLike(CHAINLINK_ETH_ORACLE).latestRoundData();
+        uint256 price = uint256(htUsdPrice).fmul(1e26).fdiv(10**FeedLike(CHAINLINK_HT_ORACLE).decimals()).fdiv(
+            uint256(ethUsdPrice)
+        );
+        assertEq(oracle.price(AddressBook.HT), price);
+        (, int256 wBtcBtcPrice, , , ) = FeedLike(CHAINLINK_WBTC_ORACLE).latestRoundData();
+        (, int256 btcEthPrice, , , ) = FeedLike(CHAINLINK_BTC_ORACLE).latestRoundData();
+        price = uint256(wBtcBtcPrice).fmul(uint256(btcEthPrice)).fdiv(10**FeedLike(CHAINLINK_WBTC_ORACLE).decimals());
+        assertEq(oracle.price(AddressBook.WBTC), price);
+    }
+}

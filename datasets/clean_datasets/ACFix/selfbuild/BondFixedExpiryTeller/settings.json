@@ -1,0 +1,34 @@
+{
+	"remappings": [
+		"clones-with-immutable-args/=lib/clones-with-immutable-args/src/",
+		"clones/=lib/clones-with-immutable-args/src/",
+		"ds-test/=lib/ds-test/src/",
+		"forge-std/=lib/forge-std/src/",
+		"hardhat/=node_modules/hardhat/",
+		"openzeppelin-contracts/=lib/openzeppelin-contracts/",
+		"openzeppelin/=lib/openzeppelin-contracts/contracts/",
+		"solmate/=lib/solmate/src/",
+		"weird-erc20/=lib/solmate/lib/weird-erc20/src/"
+	],
+	"optimizer": {
+		"enabled": true,
+		"runs": 100000
+	},
+	"metadata": {
+		"bytecodeHash": "ipfs"
+	},
+	"outputSelection": {
+		"*": {
+			"*": [
+				"evm.bytecode",
+				"evm.deployedBytecode",
+				"devdoc",
+				"userdoc",
+				"metadata",
+				"abi"
+			]
+		}
+	},
+	"evmVersion": "london",
+	"libraries": {}
+}

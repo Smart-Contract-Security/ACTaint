@@ -1,0 +1,88 @@
+pragma solidity ^0.8.17;
+import "./base.t.sol";
+import {TokenUtils} from "../src/TokenUtils.sol";
+contract TokenUtilsTest is BaseTest {
+    TokenUtilsHarness public tokenUtils;
+    function setUp() public virtual override {
+        super.setUp();
+        tokenUtils = new TokenUtilsHarness();
+        _deal({account: address(tokenUtils)});
+    }
+    function test_isETH_ETH() public {
+        assertTrue(tokenUtils.exposed_isETH(ETH_ADDRESS));
+    }
+    function test_isETH_NonETH() public {
+        assertFalse(tokenUtils.exposed_isETH(address(mockERC20)));
+    }
+    function test_decimals_ETH() public {
+        assertEq(tokenUtils.exposed_decimals(ETH_ADDRESS), 18);
+    }
+    function test_decimals_NonETH() public {
+        vm.expectCall(mockERC20, abi.encodeCall(MockERC20(mockERC20).decimals, ()));
+        assertEq(tokenUtils.exposed_decimals(mockERC20), ERC_DECIMALS);
+    }
+    function test_balanceOf_ETH() public {
+        assertEq(tokenUtils.exposed_balanceOf(ETH_ADDRESS, users.alice), users.alice.balance);
+    }
+    function test_balanceOf_NonETH() public {
+        assertEq(
+            tokenUtils.exposed_balanceOf(address(mockERC20), users.alice), MockERC20(mockERC20).balanceOf(users.alice)
+        );
+    }
+    function test_safeTransfer_ETH() public {
+        uint256 oldBalance = users.alice.balance;
+        vm.expectCall(users.alice, 1 ether, "");
+        tokenUtils.exposed_safeTransfer(ETH_ADDRESS, users.alice, 1 ether);
+        assertEq(oldBalance + 1 ether, users.alice.balance);
+    }
+    function test_safeTransfer_NonETH() public {
+        uint256 oldBalance = MockERC20(mockERC20).balanceOf(users.alice);
+        vm.expectCall(address(mockERC20), 0, abi.encodeCall(MockERC20(mockERC20).transfer, (users.alice, 1)));
+        tokenUtils.exposed_safeTransfer(address(mockERC20), users.alice, 1);
+        assertEq(oldBalance + 1, MockERC20(mockERC20).balanceOf(users.alice));
+    }
+    function testFuzz_decimals_NonETH(uint8 decimals_) public {
+        mockERC20 = address(new MockERC20("Test Token", "TOK", decimals_));
+        vm.expectCall(mockERC20, abi.encodeCall(MockERC20(mockERC20).decimals, ()));
+        assertEq(tokenUtils.exposed_decimals(mockERC20), decimals_);
+    }
+    function testFuzz_balanceOf_ETH(uint96 newBalance_) public {
+        vm.deal({account: users.alice, newBalance: newBalance_});
+        assertEq(tokenUtils.exposed_balanceOf(ETH_ADDRESS, users.alice), newBalance_);
+    }
+    function testFuzz_balanceOf_NonETH(uint256 newBalance_) public {
+        deal({token: address(mockERC20), to: users.alice, give: newBalance_});
+        assertEq(tokenUtils.exposed_balanceOf(address(mockERC20), users.alice), newBalance_);
+    }
+    function testFuzz_safeTransfer_ETH(uint96 amount_) public {
+        vm.deal({account: address(tokenUtils), newBalance: amount_});
+        uint256 oldBalance = users.alice.balance;
+        vm.expectCall(users.alice, amount_, "");
+        tokenUtils.exposed_safeTransfer(ETH_ADDRESS, users.alice, amount_);
+        assertEq(oldBalance + amount_, users.alice.balance);
+        assertEq(address(tokenUtils).balance, 0);
+    }
+    function testFuzz_safeTransfer_NonETH(uint96 amount_) public {
+        deal({token: address(mockERC20), to: address(tokenUtils), give: amount_});
+        uint256 oldBalance = MockERC20(mockERC20).balanceOf(users.alice);
+        vm.expectCall(address(mockERC20), 0, abi.encodeCall(MockERC20(mockERC20).transfer, (users.alice, amount_)));
+        tokenUtils.exposed_safeTransfer(address(mockERC20), users.alice, amount_);
+        assertEq(oldBalance + amount_, MockERC20(mockERC20).balanceOf(users.alice));
+        assertEq(MockERC20(mockERC20).balanceOf(address(tokenUtils)), 0);
+    }
+}
+contract TokenUtilsHarness {
+    using TokenUtils for address;
+    function exposed_isETH(address token_) external pure returns (bool) {
+        return token_._isETH();
+    }
+    function exposed_decimals(address token_) external view returns (uint8) {
+        return token_._decimals();
+    }
+    function exposed_balanceOf(address token_, address addr_) external view returns (uint256) {
+        return token_._balanceOf(addr_);
+    }
+    function exposed_safeTransfer(address token_, address addr_, uint256 amount_) external {
+        token_._safeTransfer(addr_, amount_);
+    }
+}

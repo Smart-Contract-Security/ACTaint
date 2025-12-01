@@ -1,0 +1,32 @@
+pragma solidity ^0.8.9;
+import "../../../errors/GeneralErrors.sol";
+import "./IStakeSubjectGateway.sol";
+import "./IDirectStakeSubject.sol";
+import "../SubjectTypeValidator.sol";
+import "../../Roles.sol";
+import "../../utils/AccessManaged.sol";
+abstract contract DirectStakeSubjectUpgradeable is AccessManagedUpgradeable, IDirectStakeSubject {
+    IStakeSubjectGateway private _subjectGateway;
+    event SubjectHandlerUpdated(address indexed newHandler);
+    error StakedUnderMinimum(uint256 subject);
+    function __StakeSubjectUpgradeable_init(address subjectGateway) internal initializer {
+        _setSubjectHandler(subjectGateway);
+    }
+    function setSubjectHandler(address subjectGateway) public onlyRole(DEFAULT_ADMIN_ROLE) {
+        _setSubjectHandler(subjectGateway);
+    }
+    function getSubjectHandler() public view returns (IStakeSubjectGateway) {
+        return _subjectGateway;
+    }
+    function _setSubjectHandler(address subjectGateway) private {
+        if (subjectGateway == address(0)) revert ZeroAddress("subjectGateway");
+        _subjectGateway = IStakeSubjectGateway(subjectGateway);
+        emit SubjectHandlerUpdated(subjectGateway);
+    }
+    function isStakedOverMin(uint256 subject) external view virtual override returns (bool) {
+        return _isStakedOverMin(subject);
+    }
+    function _isStakedOverMin(uint256 subject) internal view virtual returns (bool);
+    function ownerOf(uint256 subject) external view virtual returns (address);
+    uint256[4] private __gap;
+}

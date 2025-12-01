@@ -1,0 +1,45 @@
+pragma solidity 0.8.13;
+import "./interfaces/compound/ICompound.sol";
+import "./interfaces/IPositionsManager.sol";
+import "./interfaces/IIncentivesVault.sol";
+import "./interfaces/IRewardsManager.sol";
+import "./interfaces/IInterestRatesManager.sol";
+import "../common/libraries/DoubleLinkedList.sol";
+import "./libraries/Types.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+abstract contract MorphoStorage is OwnableUpgradeable, ReentrancyGuardUpgradeable {
+    uint8 public constant CTOKEN_DECIMALS = 8; 
+    uint16 public constant MAX_BASIS_POINTS = 10_000; 
+    uint256 public constant WAD = 1e18;
+    uint256 public maxSortedUsers; 
+    uint256 public dustThreshold; 
+    Types.MaxGasForMatching public defaultMaxGasForMatching; 
+    mapping(address => DoubleLinkedList.List) internal suppliersInP2P; 
+    mapping(address => DoubleLinkedList.List) internal suppliersOnPool; 
+    mapping(address => DoubleLinkedList.List) internal borrowersInP2P; 
+    mapping(address => DoubleLinkedList.List) internal borrowersOnPool; 
+    mapping(address => mapping(address => Types.SupplyBalance)) public supplyBalanceInOf; 
+    mapping(address => mapping(address => Types.BorrowBalance)) public borrowBalanceInOf; 
+    mapping(address => mapping(address => bool)) public userMembership; 
+    mapping(address => address[]) public enteredMarkets; 
+    address[] public marketsCreated; 
+    mapping(address => bool) public p2pDisabled; 
+    mapping(address => uint256) public p2pSupplyIndex; 
+    mapping(address => uint256) public p2pBorrowIndex; 
+    mapping(address => Types.LastPoolIndexes) public lastPoolIndexes; 
+    mapping(address => Types.MarketParameters) public marketParameters; 
+    mapping(address => Types.MarketStatus) public marketStatus; 
+    mapping(address => Types.Delta) public deltas; 
+    IPositionsManager public positionsManager;
+    IIncentivesVault public incentivesVault;
+    IRewardsManager public rewardsManager;
+    IInterestRatesManager public interestRatesManager;
+    IComptroller public comptroller;
+    address public treasuryVault;
+    address public cEth;
+    address public wEth;
+    mapping(address => uint256) public lastBorrowBlock; 
+    bool public isClaimRewardsPaused; 
+    constructor() initializer {}
+}
