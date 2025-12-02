@@ -39,4 +39,5 @@ write *gpt_url, gpt_key*
 
 
 ## Other Logs:
-    For the logs of GPTLens and AChecker, please visit [Other Logs](https://github.com/Smart-Contract-Security/ACTaint_Other)
+
+For the logs of GPTLens and AChecker, please visit [Other Logs](https://github.com/Smart-Contract-Security/ACTaint_Other)
