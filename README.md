@@ -14,13 +14,17 @@ write *gpt_url, gpt_key*
 
 ```sh start.sh```
 
-### Directory `Src`:
+## Organization:
 
 - `datasets`: All datasets
-    - `clean_datasets`: Remove comments and empty lines
-    - `raw_datasets`: raw
+    - `clean_datasets`: Remove comments and empty lines, **used in our experiment**.
+    - `raw_datasets`: raw, used as a reference
 
-- `results`: All results
+- `discussion`: The results used in our section Discussion.
+
+- `experiment`: All experiment results
+
+- `logs`: All logs
 
 - `sol_name`: Name of the Solidity file
 
@@ -28,8 +32,11 @@ write *gpt_url, gpt_key*
     - `entities/`: Contains data and definitions.
     - `LLM/`: AI agents.
     - `config.py`: Configuration file **(Important)**
-- `CVE/`: Dataset folder for CVE entries.
 
 - `many.sh`: Script for batch execution (needs to be edited before use).
 
-- `start.sh`: Script to start the program (needs to be edited before use).
+- `start.sh`: Script to start the program.
+
+
+## Other Logs:
+    For the logs of GPTLens and AChecker, please visit [Other Logs](https://github.com/Smart-Contract-Security/ACTaint_Other)
